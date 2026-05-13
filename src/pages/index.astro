@@ -1,0 +1,281 @@
+---
+import ToolLayout from "../layouts/ToolLayout.astro";
+import LoadingStages from "../components/LoadingStages.astro";
+import RateLimitWall from "../components/RateLimitWall.astro";
+import ShotResult from "../components/ShotResult.astro";
+import { SHOT_SAMPLES } from "../fixtures/studio-north";
+
+const REPO_URL = "https://github.com/Voxlabs-Live/shot-list";
+
+const FORMATS = [
+  "9:16 reel (15-30s)",
+  "9:16 reel (60s)",
+  "16:9 commercial (30s)",
+  "16:9 commercial (60s)",
+];
+---
+<ToolLayout
+  toolName="Shot List"
+  description="Paste a script or concept, get a structured shot list — shot #, action, framing, duration, audio, transition. Render-engine-agnostic. Part of the Agency Vibe-Coding Kit."
+  repoUrl={REPO_URL}
+>
+  <h1 class="tool-title">
+    From a paragraph of script to a <em>shoot-day shot list</em>.
+  </h1>
+  <p class="tool-lede">
+    Paste a script or concept and pick the format. The tool returns a structured
+    shot list — numbered, framed, timed, audio-cued, with optional shader
+    transitions for Hyperframes assembly downstream.
+  </p>
+
+  <section class="card">
+    <div class="samples">
+      <span class="samples__label">Try a sample:</span>
+      {SHOT_SAMPLES.map((s) => (
+        <button class="btn btn--ghost btn--small" data-sample={s.id}>
+          {s.client}
+        </button>
+      ))}
+    </div>
+
+    <div class="field-group">
+      <label class="field-label" for="format">
+        Format
+        <span class="field-hint">Target duration window drives the per-shot timing budget</span>
+      </label>
+      <select class="input" id="format" name="format">
+        {FORMATS.map((f) => <option value={f}>{f}</option>)}
+      </select>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label" for="concept">
+        Concept or script
+        <span class="field-hint">Paste a written script (V/O + action), a high-level concept, or both</span>
+      </label>
+      <textarea
+        class="input"
+        id="concept"
+        name="concept"
+        placeholder={"Aurelia Lashes — before/after reveal of a returning client's first set after a 6-week break. Open on her closed eyes mid-application, end on her seeing herself in the mirror. No V/O — pure sound design..."}
+        rows="11"
+      ></textarea>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn--primary" id="submit">Generate shot list &rarr;</button>
+      <LoadingStages stages={["Reading", "Planning", "Done"]} />
+      <span class="actions__hint" id="hint"></span>
+    </div>
+  </section>
+
+  <ShotResult />
+  <RateLimitWall repoUrl={REPO_URL} />
+</ToolLayout>
+
+<style>
+  .field-group { margin-bottom: 1rem; }
+  .field-group:last-of-type { margin-bottom: 1.25rem; }
+</style>
+
+<script>
+  import { SHOT_SAMPLES } from "../fixtures/studio-north";
+  import type { ShotListResult, Shot } from "../lib/shot-types";
+  import type { ApiResponse } from "../lib/types";
+
+  type GenData = ShotListResult & {
+    duration_drift?: boolean;
+    target_duration_sec?: number;
+  };
+
+  const $ = (sel: string) => document.querySelector(sel) as HTMLElement | null;
+  const formatEl = $("#format") as HTMLSelectElement;
+  const conceptEl = $("#concept") as HTMLTextAreaElement;
+  const submit = $("#submit") as HTMLButtonElement;
+  const hint = $("#hint");
+  const loading = document.querySelector(".loading") as HTMLElement | null;
+  const result = document.querySelector(".result") as HTMLElement | null;
+  const wall = document.querySelector(".wall") as HTMLElement | null;
+
+  let lastClientName = "";
+
+  document.querySelectorAll<HTMLButtonElement>("[data-sample]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.sample;
+      const sample = SHOT_SAMPLES.find((s) => s.id === id);
+      if (sample) {
+        formatEl.value = sample.format;
+        conceptEl.value = sample.concept;
+        lastClientName = sample.client;
+      }
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const data = (window as any).__lastResult as GenData | undefined;
+      if (!data) return;
+      const text = btn.dataset.copy === "json" ? JSON.stringify(data, null, 2) : formatPlain(data);
+      navigator.clipboard.writeText(text);
+      const orig = btn.textContent;
+      btn.textContent = "Copied!";
+      setTimeout(() => (btn.textContent = orig), 1400);
+    });
+  });
+
+  submit.addEventListener("click", async () => {
+    const concept = conceptEl.value.trim();
+    const format = formatEl.value;
+    if (!concept) {
+      conceptEl.focus();
+      return;
+    }
+
+    submit.disabled = true;
+    if (hint) hint.textContent = "";
+    if (result) result.hidden = true;
+    if (wall) wall.hidden = true;
+    if (loading) {
+      loading.hidden = false;
+      loading.dataset.stage = "reading";
+    }
+    const t1 = window.setTimeout(() => {
+      if (loading) loading.dataset.stage = "extracting";
+    }, 1000);
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ concept, format }),
+      });
+      const payload = (await res.json()) as ApiResponse<GenData>;
+      window.clearTimeout(t1);
+
+      if (!payload.ok) {
+        if (payload.error === "rate_limit_exceeded" && wall) {
+          wall.hidden = false;
+          wall.scrollIntoView({ behavior: "smooth", block: "start" });
+        } else if (hint) {
+          hint.textContent = payload.message;
+        }
+        return;
+      }
+
+      if (loading) loading.dataset.stage = "done";
+      (window as any).__lastResult = payload.data;
+      render(payload.data);
+      if (hint && Number.isFinite(payload.remaining) && payload.remaining >= 0) {
+        hint.textContent =
+          payload.remaining > 0
+            ? `${payload.remaining} demo run${payload.remaining === 1 ? "" : "s"} remaining`
+            : "Last demo run used — fork to keep going.";
+      }
+    } catch {
+      if (hint) hint.textContent = "Network error. Try again.";
+    } finally {
+      submit.disabled = false;
+      window.setTimeout(() => {
+        if (loading) loading.hidden = true;
+      }, 600);
+    }
+  });
+
+  function render(data: GenData) {
+    if (!result) return;
+    result.hidden = false;
+
+    const clientEl = result.querySelector('[data-field="client"]') as HTMLElement;
+    clientEl.textContent = lastClientName || "your spot";
+
+    (result.querySelector('[data-field="format"]') as HTMLElement).textContent = data.format;
+    (result.querySelector('[data-field="total"]') as HTMLElement).textContent =
+      data.total_duration_sec.toFixed(1);
+    (result.querySelector('[data-field="count"]') as HTMLElement).textContent =
+      String(data.shot_count);
+
+    const driftEl = result.querySelector('[data-field="drift"]') as HTMLElement;
+    driftEl.hidden = !data.duration_drift;
+
+    const shotsEl = result.querySelector('[data-field="shots"]') as HTMLElement;
+    shotsEl.innerHTML = "";
+    data.shots.forEach((s) => shotsEl.appendChild(renderShot(s)));
+
+    result.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function renderShot(s: Shot): HTMLLIElement {
+    const li = document.createElement("li");
+
+    const num = document.createElement("div");
+    num.className = "shot-num";
+    num.textContent = String(s.shot_number).padStart(2, "0");
+
+    const body = document.createElement("div");
+    body.className = "shot-body";
+
+    const meta = document.createElement("div");
+    meta.className = "shot-meta";
+    meta.appendChild(chip(`${s.duration_sec.toFixed(1)}s`, "chip chip--duration"));
+    meta.appendChild(chip(s.framing, "chip"));
+    if (s.transition_in && s.transition_in !== "cut") {
+      meta.appendChild(chip(`→ ${s.transition_in}`, "chip chip--transition"));
+    }
+    body.appendChild(meta);
+
+    const action = document.createElement("p");
+    action.className = "shot-action";
+    action.textContent = s.action;
+    body.appendChild(action);
+
+    const audio = document.createElement("p");
+    audio.className = "shot-audio";
+    const audioLabel = document.createElement("span");
+    audioLabel.className = "shot-audio-label";
+    audioLabel.textContent = "Audio";
+    audio.appendChild(audioLabel);
+    audio.appendChild(document.createTextNode(s.audio));
+    body.appendChild(audio);
+
+    if (s.notes) {
+      const notes = document.createElement("p");
+      notes.className = "shot-notes";
+      const notesLabel = document.createElement("span");
+      notesLabel.className = "shot-notes-label";
+      notesLabel.textContent = "Note";
+      notes.appendChild(notesLabel);
+      notes.appendChild(document.createTextNode(s.notes));
+      body.appendChild(notes);
+    }
+
+    li.appendChild(num);
+    li.appendChild(body);
+    return li;
+  }
+
+  function chip(text: string, className: string): HTMLSpanElement {
+    const span = document.createElement("span");
+    span.className = className;
+    span.textContent = text;
+    return span;
+  }
+
+  function formatPlain(d: GenData): string {
+    const lines: string[] = [];
+    lines.push(`SHOT LIST — ${d.format}`);
+    lines.push(`Total: ${d.total_duration_sec.toFixed(1)}s · ${d.shot_count} shots`);
+    if (d.duration_drift && d.target_duration_sec) {
+      lines.push(`(drift warning: target was ~${d.target_duration_sec}s)`);
+    }
+    lines.push("");
+    d.shots.forEach((s) => {
+      const trans = s.transition_in && s.transition_in !== "cut" ? ` · ${s.transition_in}` : "";
+      lines.push(`${String(s.shot_number).padStart(2, "0")}. [${s.duration_sec.toFixed(1)}s · ${s.framing}${trans}]`);
+      lines.push(`    Action: ${s.action}`);
+      lines.push(`    Audio: ${s.audio}`);
+      if (s.notes) lines.push(`    Note: ${s.notes}`);
+      lines.push("");
+    });
+    return lines.join("\n");
+  }
+</script>
