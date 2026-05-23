@@ -78,21 +78,83 @@ The JSON output is intentionally render-engine-agnostic. Use it as-is for editor
 
 ## Customize the tool
 
-### Tune the format targets
+This repo is yours to modify. You don't have to write code — **Claude** rewrites the files for you, you paste the result back into GitHub in your browser. No terminal, no command line.
 
-Open `src/prompts/system.ts`. The four format options and their target duration windows are defined in the system prompt — add your own (`16:9 commercial (15s)`, `1:1 square (30s)`, etc.) and update `FORMAT_TARGET_SEC` in `src/pages/api/generate.ts` to match.
+### One-time setup (≈3 minutes)
 
-### Add per-client concept presets
+1. **Download the Claude desktop app.** Go to [claude.ai/download](https://claude.ai/download). Click the download button for your operating system. On **Mac**, open the downloaded file and drag the Claude icon into your Applications folder. On **Windows**, run the installer. Sign in with your Claude account.
 
-The fixtures in `src/fixtures/studio-north.ts` are demo content. Replace them with your real clients' brand templates so common concepts populate the form with one click.
+That's it. Claude desktop is the same chat you already know from [claude.ai](https://claude.ai) — just running as an app on your computer. (If you'd rather not install anything, [claude.ai](https://claude.ai) in your browser works exactly the same way for the steps below.)
 
-### Upgrade to polished UI
+### How customizing works
 
-The kit's **Bump #1 — Claude Design Polish Guide** ($17) walks you through styling this repo with [Claude Design](https://claude.com/design). *(Available after kit purchase.)*
+Three browser tabs and one app, working together:
+
+1. **GitHub** in your browser — where your tool's code lives.
+2. **Claude desktop app** — does the rewriting.
+3. **Vercel** in your browser — auto-redeploys your live tool when you commit a change.
+
+The flow for any change is the same six steps:
+
+1. **In GitHub**, click the file you want to change (paths are in the prompts below).
+2. Click the **"Copy raw file"** icon at the top right of the file view — it copies the whole file to your clipboard.
+3. **In Claude desktop**, start a new chat. Paste the file contents. Below it, paste the prompt from this README. Hit return.
+4. Claude rewrites the file and shows you the result. Copy Claude's output.
+5. **Back in GitHub**, click the **pencil icon** at the top right of the file view (the tooltip says "Edit this file"). Select everything (`Cmd+A` on Mac, `Ctrl+A` on Windows), delete it, paste your new version.
+6. Scroll to the bottom of the page. Write a one-line summary of what changed (e.g. "Tighten reel duration to 12-20s"). Click the green **"Commit changes"** button.
+
+Vercel sees the commit and auto-redeploys your live URL in about 90 seconds. Refresh your tool to see the change.
+
+### Three starting points
+
+#### 1. Adjust the duration windows for the four formats
+
+The tool ships with four output formats (9:16 reel, 1:1 square, 16:9 commercial, 6-second pre-roll) and target duration windows for each. Want your reels to land at 12-20 seconds instead of 15-30? Want longer commercials? Different defaults for your clients' style?
+
+**File to copy from GitHub:** `src/prompts/system.ts`
+
+> **Prompt to paste below the file contents:**
+> ```
+> The file above defines four format options for the Shot List Generator
+> and their target duration windows. Change the "9:16 reel" target from
+> 15-30 seconds to 12-20 seconds. Leave the other three formats unchanged.
+>
+> Return the full updated file so I can paste it back into GitHub.
+> ```
+
+Adapt the prompt — change whichever format windows fit your clients' style.
+
+#### 2. Replace demo clients with your own
+
+The tool ships with three sample clients (Aurelia Lashes, Mantra Yoga, Dr. Eckhardt Clinic) so you can try it without setting anything up. Replace them with your real clients' brand templates so common shoot concepts populate the form with one click.
+
+**File to copy from GitHub:** `src/fixtures/studio-north.ts`
+
+> **Prompt:**
+> ```
+> The file above contains three demo client fixtures. Replace them with
+> these three of mine instead:
+>
+> Client 1: [paste your client's name, a short brand-style description,
+> and 3-5 sample shot concepts they'd typically need]
+>
+> Client 2: [same]
+>
+> Client 3: [same]
+>
+> Keep the file structure identical so the tool still works. Return the
+> full updated file so I can paste it back into GitHub.
+> ```
+
+#### 3. Make it look like agency work, not a starter kit
+
+For a full re-skin: the **Claude Design Brand Pass Guide** ($17) walks you through restyling this exact repo using [Claude Design](https://claude.com/design) — the guide ships handoff bundles for the entire UI. *(Available after kit purchase.)*
 
 ---
 
-## Local dev
+## Local dev (for developers only)
+
+> **Skip this section if you used the Deploy with Vercel button above.** This is for developers who want to clone the repo and run a dev server locally. If you don't know what `npm` is, you don't need this — the Customize section above is the path you want.
 
 ```sh
 git clone https://github.com/Voxlabs-Live/shot-list
