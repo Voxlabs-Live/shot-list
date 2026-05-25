@@ -29,14 +29,16 @@ const FORMATS = [
   </p>
 
   <section class="card">
-    <div class="samples">
-      <span class="samples__label">Try a sample:</span>
-      {SHOT_SAMPLES.map((s) => (
-        <button class="btn btn--ghost btn--small" data-sample={s.id}>
-          {s.client}
-        </button>
-      ))}
-    </div>
+    {SHOT_SAMPLES.length > 0 && (
+      <div class="samples">
+        <span class="samples__label">Try a sample:</span>
+        {SHOT_SAMPLES.map((s) => (
+          <button class="btn btn--ghost btn--small" data-sample={s.id}>
+            {s.client}
+          </button>
+        ))}
+      </div>
+    )}
 
     <div class="field-group">
       <label class="field-label" for="format">

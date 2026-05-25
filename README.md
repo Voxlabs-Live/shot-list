@@ -124,11 +124,13 @@ The tool ships with four output formats (9:16 reel, 1:1 square, 16:9 commercial,
 
 Adapt the prompt — change whichever format windows fit your clients' style.
 
-#### 2. Replace demo clients with your own
+#### 2. Replace or remove the demo sample buttons
 
-The tool ships with three sample clients (Aurelia Lashes, Mantra Yoga, Dr. Eckhardt Clinic) so you can try it without setting anything up. Replace them with your real clients' brand templates so common shoot concepts populate the form with one click.
+The tool ships with three sample clients (Aurelia Lashes, Mantra Yoga, Dr. Eckhardt Clinic) so you can try it without setting anything up. You'll almost certainly want to either swap them for your real clients' brand templates so common shoot concepts populate the form — or remove the row entirely so your live tool starts empty.
 
 **File to copy from GitHub:** `src/fixtures/studio-north.ts`
+
+**Option A — Replace with your own:**
 
 > **Prompt:**
 > ```
@@ -145,6 +147,21 @@ The tool ships with three sample clients (Aurelia Lashes, Mantra Yoga, Dr. Eckha
 > Keep the file structure identical so the tool still works. Return the
 > full updated file so I can paste it back into GitHub.
 > ```
+
+**Option B — Remove samples entirely:**
+
+> **Prompt:**
+> ```
+> The file above defines three demo client fixtures. I don't want any
+> sample buttons in my deployed tool — users should just see empty input
+> fields.
+>
+> Rewrite the file so SHOT_SAMPLES is an empty array. Keep the ShotSample
+> interface and the findShotSample function so nothing else breaks.
+> Return the full updated file so I can paste it back into GitHub.
+> ```
+
+When `SHOT_SAMPLES` is empty, the "Try a sample:" row automatically disappears from your tool — no further code changes needed.
 
 #### 3. Make it look like agency work, not a starter kit
 
