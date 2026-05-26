@@ -124,13 +124,32 @@ The tool ships with four output formats (9:16 reel, 1:1 square, 16:9 commercial,
 
 Adapt the prompt — change whichever format windows fit your clients' style.
 
-#### 2. Replace or remove the demo sample buttons
+#### 2. Remove or replace the demo sample buttons
 
-The tool ships with three sample clients (Aurelia Lashes, Mantra Yoga, Dr. Eckhardt Clinic) so you can try it without setting anything up. You'll almost certainly want to either swap them for your real clients' brand templates so common shoot concepts populate the form — or remove the row entirely so your live tool starts empty.
+The tool ships with three sample clients (Aurelia Lashes, Mantra Yoga, Dr. Eckhardt Clinic) so you can try it without setting anything up. On your own deploy, you've got two paths.
 
 **File to copy from GitHub:** `src/fixtures/studio-north.ts`
 
-**Option A — Replace with your own:**
+**Option A — Remove them entirely (recommended for most buyers):**
+
+For day-to-day use the sample row is just noise — every shoot has a fresh concept, and you'll be pasting it directly. Remove the row and your tool starts clean.
+
+> **Prompt:**
+> ```
+> The file above defines three demo client fixtures. I don't want any
+> sample buttons in my deployed tool — users should just see empty input
+> fields.
+>
+> Rewrite the file so SHOT_SAMPLES is an empty array. Keep the ShotSample
+> interface and the findShotSample function so nothing else breaks.
+> Return the full updated file so I can paste it back into GitHub.
+> ```
+
+When `SHOT_SAMPLES` is empty, the "Try a sample:" row automatically disappears from your tool — no further code changes needed.
+
+**Option B — Swap in your own clients (useful for team training or live demos):**
+
+Keep the sample row but pre-load three of your real clients' typical shoot concepts. Mostly useful if you're onboarding team members ("click TechCorp to see how the tool plans one of our typical shoots") or showing the tool to a director, an editor, or a prospect in a meeting. Less useful for your own daily flow since every shoot's concept is fresh anyway.
 
 > **Prompt:**
 > ```
@@ -147,21 +166,6 @@ The tool ships with three sample clients (Aurelia Lashes, Mantra Yoga, Dr. Eckha
 > Keep the file structure identical so the tool still works. Return the
 > full updated file so I can paste it back into GitHub.
 > ```
-
-**Option B — Remove samples entirely:**
-
-> **Prompt:**
-> ```
-> The file above defines three demo client fixtures. I don't want any
-> sample buttons in my deployed tool — users should just see empty input
-> fields.
->
-> Rewrite the file so SHOT_SAMPLES is an empty array. Keep the ShotSample
-> interface and the findShotSample function so nothing else breaks.
-> Return the full updated file so I can paste it back into GitHub.
-> ```
-
-When `SHOT_SAMPLES` is empty, the "Try a sample:" row automatically disappears from your tool — no further code changes needed.
 
 #### 3. Make it look like agency work, not a starter kit
 
