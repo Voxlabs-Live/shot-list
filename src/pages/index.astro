@@ -117,7 +117,15 @@ const FORMATS = [
     btn.addEventListener("click", () => {
       const data = (window as any).__lastResult as GenData | undefined;
       if (!data) return;
-      const text = btn.dataset.copy === "json" ? JSON.stringify(data, null, 2) : formatPlain(data);
+      // Copy JSON emits ONLY the canonical, render-engine-agnostic schema —
+      // never the internal duration_drift / target_duration_sec UI flags.
+      const cleanJson = {
+        format: data.format,
+        total_duration_sec: data.total_duration_sec,
+        shot_count: data.shot_count,
+        shots: data.shots,
+      };
+      const text = btn.dataset.copy === "json" ? JSON.stringify(cleanJson, null, 2) : formatPlain(data);
       navigator.clipboard.writeText(text);
       const orig = btn.textContent;
       btn.textContent = "Copied!";

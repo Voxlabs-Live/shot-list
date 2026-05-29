@@ -11,4 +11,6 @@ export type ApiErrorCode =
   | "invalid_input"
   | "anthropic_error"
   | "parse_error"
-  | "missing_api_key";
+  | "missing_api_key"
+  | "truncated"
+  | "incomplete_output";

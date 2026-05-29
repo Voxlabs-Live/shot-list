@@ -1,18 +1,20 @@
 import type { APIRoute } from "astro";
-import { callCached, parseJson } from "../../lib/anthropic";
+import { callCached, repair, parseJson } from "../../lib/anthropic";
 import { readDemo, consumeDemo } from "../../lib/rate-limit";
 import { SHOT_LIST_SYSTEM_PROMPT } from "../../prompts/system";
 import type { ShotListResult } from "../../lib/shot-types";
 import type { ApiResponse } from "../../lib/types";
+import {
+  validateShotModelOutput,
+  normalizeShots,
+  computeTotals,
+  driftInfo,
+  FORMAT_TARGET_SEC,
+} from "../../lib/validate";
 
 export const prerender = false;
 
-const FORMAT_TARGET_SEC: Record<string, number> = {
-  "9:16 reel (15-30s)": 22,
-  "9:16 reel (60s)": 58,
-  "16:9 commercial (30s)": 28,
-  "16:9 commercial (60s)": 58,
-};
+const MAX_TOKENS = 3500;
 
 interface GenerateResponseData extends ShotListResult {
   /** True when sum(shot.duration_sec) drifted outside ±10% of the format target. */
@@ -70,13 +72,15 @@ export const POST: APIRoute = async ({ request }) => {
   // Step 3 — call Claude
   const userInput = `FORMAT: ${format}\n\n---\n\nCONCEPT / SCRIPT:\n\n${concept}`;
   let raw: string;
+  let stopReason: string | null;
   try {
     const result = await callCached({
       systemPrompt: SHOT_LIST_SYSTEM_PROMPT,
       userInput,
-      maxTokens: 3500,
+      maxTokens: MAX_TOKENS,
     });
     raw = result.text;
+    stopReason = result.stopReason;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     const code = msg.includes("ANTHROPIC_API_KEY")
@@ -85,34 +89,83 @@ export const POST: APIRoute = async ({ request }) => {
     return json<GenerateResponseData>({ ok: false, error: code, message: msg });
   }
 
-  // Step 4 — parse JSON
-  let data: ShotListResult;
-  try {
-    data = parseJson<ShotListResult>(raw);
-  } catch {
+  if (stopReason === "max_tokens") {
     return json<GenerateResponseData>({
       ok: false,
-      error: "parse_error",
-      message: "Claude returned non-JSON. Try again.",
+      error: "truncated",
+      message: "That input produced a response too long to finish. Trim the concept and try again.",
     });
   }
 
-  // Step 5 — duration sanity (±10% tolerance, soft warning rather than reject)
-  const target = FORMAT_TARGET_SEC[format];
-  const sum = data.shots.reduce((s, sh) => s + (sh.duration_sec ?? 0), 0);
-  const drift = Math.abs(sum - target) > target * 0.1;
+  // Step 4 — parse + validate; one corrective re-prompt if the model drifted
+  // (bad shape, invalid transition, or duration sum outside the target window)
+  let data = tryParse(raw);
+  let violations = data
+    ? validateShotModelOutput(data, format)
+    : [{ code: "json", message: "Return valid strict JSON only, matching the schema exactly." }];
 
-  // Step 6 — consume one demo credit
+  if (violations.length > 0) {
+    try {
+      const fixed = await repair({
+        systemPrompt: SHOT_LIST_SYSTEM_PROMPT,
+        userInput,
+        priorRaw: raw,
+        violations: violations.map((v) => v.message),
+        maxTokens: MAX_TOKENS,
+      });
+      if (fixed.stopReason !== "max_tokens") {
+        const repaired = tryParse(fixed.text);
+        if (repaired && Array.isArray(repaired.shots) && repaired.shots.length > 0) {
+          const v2 = validateShotModelOutput(repaired, format);
+          if (v2.length <= violations.length) {
+            data = repaired;
+            violations = v2;
+          }
+        }
+      }
+    } catch {
+      // Swallow — deterministic post-processing below still salvages a usable result.
+    }
+  }
+
+  // Step 5 — shots are required; nothing else is salvageable without them
+  if (!data || !Array.isArray(data.shots) || data.shots.length === 0) {
+    return json<GenerateResponseData>({
+      ok: false,
+      error: "incomplete_output",
+      message: "The tool returned an incomplete result. Please try again.",
+    });
+  }
+
+  // Step 6 — deterministic post-processing (authoritative)
+  const shots = normalizeShots(data.shots);
+  const { total_duration_sec, shot_count } = computeTotals(shots);
+  const { target, drift } = driftInfo(shots, format);
+
+  const out: GenerateResponseData = {
+    format,
+    total_duration_sec,
+    shot_count,
+    shots,
+    duration_drift: drift,
+    target_duration_sec: target,
+  };
+
+  // Step 7 — consume one demo credit
   await consumeDemo(request);
   const remaining =
     usage.remaining === Infinity ? -1 : Math.max(0, usage.remaining - 1);
 
-  return json<GenerateResponseData>({
-    ok: true,
-    data: { ...data, duration_drift: drift, target_duration_sec: target },
-    remaining,
-  });
+  return json<GenerateResponseData>({ ok: true, data: out, remaining });
 };
+
+function tryParse(raw: string): ShotListResult | null {
+  try {
+    return parseJson<ShotListResult>(raw);
+  } catch {
+    return null;
+  }
+}
 
 function json<T>(payload: ApiResponse<T>): Response {
   return new Response(JSON.stringify(payload), {
