@@ -28,6 +28,29 @@ const FORMATS = [
     transitions for Hyperframes assembly downstream.
   </p>
 
+  <!-- ─── Project library ──────────────────────────────────────────────── -->
+  <section class="projects" data-projects>
+    <div class="projects__row">
+      <label class="projects__label" for="project-picker">Project</label>
+      <select class="input projects__picker" id="project-picker" data-project-picker></select>
+      <button class="btn btn--ghost btn--small" data-project-new>+ New</button>
+      <button class="btn btn--ghost btn--small" data-project-duplicate>Duplicate</button>
+      <button class="btn btn--ghost btn--small" data-project-delete>Delete</button>
+    </div>
+    <div class="projects__row projects__row--name" data-project-name-row hidden>
+      <label class="projects__label" for="project-name">Name</label>
+      <input
+        class="input projects__name"
+        id="project-name"
+        data-project-name
+        type="text"
+        maxlength="120"
+        placeholder="Project name"
+      />
+    </div>
+    <span class="projects__status" data-project-status></span>
+  </section>
+
   <section class="card">
     {SHOT_SAMPLES.length > 0 && (
       <div class="samples">
@@ -73,17 +96,149 @@ const FORMATS = [
 
   <ShotResult />
   <RateLimitWall repoUrl={REPO_URL} />
+
+  <!-- Confirmation modal — replaces native confirm() for destructive actions. -->
+  <div class="confirm" data-confirm-modal hidden>
+    <div class="confirm__backdrop" data-confirm-cancel></div>
+    <div class="confirm__card" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body">
+      <h3 class="confirm__title" id="confirm-title" data-confirm-title>Are you sure?</h3>
+      <p class="confirm__body" id="confirm-body" data-confirm-body></p>
+      <div class="confirm__actions">
+        <button type="button" class="btn btn--ghost btn--small" data-confirm-cancel>Cancel</button>
+        <button type="button" class="btn btn--small confirm__danger" data-confirm-ok>Confirm</button>
+      </div>
+    </div>
+  </div>
 </ToolLayout>
 
 <style>
   .field-group { margin-bottom: 1rem; }
   .field-group:last-of-type { margin-bottom: 1.25rem; }
+
+  /* ─── Project library bar ───────────────────────────────────────────── */
+  .projects {
+    background: var(--surface-0);
+    border: 1px solid var(--surface-200);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow-card);
+  }
+  .projects__row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .projects__row--name { margin-top: 0.6rem; }
+  .projects__label {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--surface-500);
+    flex: 0 0 auto;
+  }
+  .projects__picker { flex: 1 1 16rem; min-width: 12rem; }
+  .projects__name { flex: 1 1 16rem; min-width: 12rem; }
+  .projects__name[readonly] {
+    background: var(--surface-50);
+    color: var(--surface-500);
+    cursor: not-allowed;
+  }
+  .projects__status {
+    display: inline-block;
+    margin-top: 0.5rem;
+    min-height: 1.1em;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--surface-600);
+  }
+  .projects__status[data-state="saved"] { color: var(--accent-700); }
+  .projects__status[data-state="warn"] { color: var(--amber-700, var(--surface-700)); }
+
+  /* ─── Confirmation modal ─────────────────────────────────────────────── */
+  .confirm {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+  }
+  .confirm__backdrop {
+    position: absolute;
+    inset: 0;
+    background: oklch(0.18 0.012 60 / 0.45);
+    backdrop-filter: blur(2px);
+    animation: confirm-fade var(--duration-base) var(--ease-smooth);
+  }
+  .confirm__card {
+    position: relative;
+    width: 100%;
+    max-width: 26rem;
+    background: var(--surface-0);
+    border: 1px solid var(--surface-200);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl);
+    padding: 1.5rem 1.6rem 1.35rem;
+    animation: confirm-pop var(--duration-base) var(--ease-spring);
+  }
+  .confirm__title {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    line-height: var(--leading-snug);
+    color: var(--surface-900);
+    margin: 0 0 0.55rem;
+  }
+  .confirm__body {
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+    color: var(--surface-700);
+    margin: 0 0 1.35rem;
+  }
+  .confirm__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+  }
+  .confirm__danger {
+    background: var(--accent-600);
+    color: var(--surface-0);
+    box-shadow: var(--shadow-cta);
+  }
+  .confirm__danger:hover { background: var(--accent-700); color: var(--surface-0); }
+
+  @keyframes confirm-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes confirm-pop {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .confirm__backdrop, .confirm__card { animation: none; }
+  }
 </style>
 
 <script>
   import { SHOT_SAMPLES } from "../fixtures/studio-north";
   import type { ShotListResult, Shot } from "../lib/shot-types";
   import type { ApiResponse } from "../lib/types";
+  import {
+    seedSamplesIfNeeded,
+    buildSampleProjects,
+    listProjects,
+    getProject,
+    saveProject,
+    deleteProject,
+    renameProject,
+    duplicateProject,
+    autoName,
+    setLastViewed,
+    getLastViewedId,
+    isSampleId,
+    type Project,
+    type StoredResult,
+  } from "../lib/project-storage";
 
   type GenData = ShotListResult & {
     duration_drift?: boolean;
@@ -99,20 +254,243 @@ const FORMATS = [
   const result = document.querySelector(".result") as HTMLElement | null;
   const wall = document.querySelector(".wall") as HTMLElement | null;
 
-  let lastClientName = "";
+  // Project library controls.
+  const picker = $("[data-project-picker]") as HTMLSelectElement;
+  const nameRow = $("[data-project-name-row]") as HTMLElement;
+  const nameInput = $("[data-project-name]") as HTMLInputElement;
+  const newBtn = $("[data-project-new]") as HTMLButtonElement;
+  const dupBtn = $("[data-project-duplicate]") as HTMLButtonElement;
+  const delBtn = $("[data-project-delete]") as HTMLButtonElement;
+  const projStatus = $("[data-project-status]") as HTMLElement;
 
+  /** The active project's id, or null when the inputs hold an unsaved draft. */
+  let currentProjectId: string | null = null;
+  /** Drives the result header's client label. */
+  let lastClientName = "";
+  /** Debounced-rename state. Declared up here so the bootstrap restore (which
+   *  calls openProject → flushRename) doesn't hit a temporal dead zone. */
+  let renameTimer: number | undefined;
+  let pendingRename: { id: string; value: string } | null = null;
+
+  function setStatus(message: string, state?: "saved" | "warn"): void {
+    projStatus.textContent = message;
+    if (state) projStatus.dataset.state = state;
+    else delete projStatus.dataset.state;
+  }
+
+  // ─── Picker population ────────────────────────────────────────────────
+  function populatePicker(): void {
+    const projects = listProjects();
+    picker.innerHTML = "";
+    if (currentProjectId === null) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "— Unsaved draft —";
+      picker.appendChild(opt);
+    }
+    for (const p of projects) {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      // textContent => XSS-safe with user-supplied / sample names.
+      opt.textContent = isSampleId(p.id) ? `${p.name} — sample` : p.name;
+      picker.appendChild(opt);
+    }
+    picker.value = currentProjectId ?? "";
+  }
+
+  /** Reflect the current project's editable state in name input + buttons. */
+  function refreshControls(): void {
+    const sample = isSampleId(currentProjectId ?? "");
+    const hasProject = currentProjectId !== null;
+    nameRow.hidden = !hasProject;
+    if (hasProject) {
+      const proj = getProject(currentProjectId as string);
+      nameInput.value = proj?.name ?? "";
+      nameInput.readOnly = sample;
+      nameInput.title = sample ? "Sample projects are read-only — Duplicate to edit" : "";
+    }
+    dupBtn.disabled = !hasProject;
+    delBtn.disabled = !hasProject;
+  }
+
+  /** Hide + clear the result panel so a stale list can't apply to a new item. */
+  function clearResultPanel(): void {
+    if (result) result.hidden = true;
+    const shotsEl = result?.querySelector('[data-field="shots"]') as HTMLElement | null;
+    if (shotsEl) shotsEl.innerHTML = "";
+    delete (window as any).__lastResult;
+  }
+
+  // ─── Open / new / load ────────────────────────────────────────────────
+  function openProject(id: string): void {
+    flushRename(); // persist any pending rename for the doc we're leaving
+    const proj = getProject(id);
+    if (!proj) return;
+    currentProjectId = proj.id;
+    formatEl.value = proj.format || formatEl.value;
+    conceptEl.value = proj.concept;
+    lastClientName = isSampleId(proj.id) ? proj.name : proj.name || "your spot";
+    if (proj.result && Array.isArray(proj.result.shots) && proj.result.shots.length > 0) {
+      (window as any).__lastResult = proj.result;
+      render(proj.result as GenData);
+    } else {
+      clearResultPanel();
+    }
+    setLastViewed(proj.id);
+    populatePicker();
+    refreshControls();
+    setStatus(isSampleId(proj.id) ? "Sample — generate to save your own copy" : "");
+  }
+
+  function newProject(): void {
+    flushRename();
+    currentProjectId = null;
+    conceptEl.value = "";
+    lastClientName = "";
+    clearResultPanel();
+    if (wall) wall.hidden = true;
+    if (hint) hint.textContent = "";
+    populatePicker();
+    refreshControls();
+    setStatus("New draft — generate to save it.");
+    conceptEl.focus();
+  }
+
+  // ─── Bootstrap ────────────────────────────────────────────────────────
+  seedSamplesIfNeeded(buildSampleProjects(SHOT_SAMPLES));
+  populatePicker();
+  refreshControls();
+  (() => {
+    const lastId = getLastViewedId();
+    if (lastId && getProject(lastId)) openProject(lastId);
+    else setStatus("");
+  })();
+
+  // Last-resort flush so a refresh during the rename debounce isn't lost.
+  window.addEventListener("beforeunload", flushRename);
+
+  // ─── Sample quick-buttons → open the matching sample project ──────────
   document.querySelectorAll<HTMLButtonElement>("[data-sample]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = btn.dataset.sample;
       const sample = SHOT_SAMPLES.find((s) => s.id === id);
-      if (sample) {
-        formatEl.value = sample.format;
-        conceptEl.value = sample.concept;
-        lastClientName = sample.client;
-      }
+      if (sample) openProject(`sample:${sample.id}`);
     });
   });
 
+  // ─── Picker / new / duplicate / delete / rename ──────────────────────
+  picker.addEventListener("change", () => {
+    const id = picker.value;
+    if (!id) return; // "Unsaved draft" placeholder
+    openProject(id);
+  });
+
+  newBtn.addEventListener("click", newProject);
+
+  dupBtn.addEventListener("click", () => {
+    if (!currentProjectId) return;
+    const copy = duplicateProject(currentProjectId);
+    if (copy) {
+      openProject(copy.id);
+      setStatus(`Duplicated as "${copy.name}".`, "saved");
+    }
+  });
+
+  // Capture the project id + value at edit time so a fast switch mid-debounce
+  // can't apply a pending rename to the WRONG (newly-selected) project.
+  function applyRename(id: string, value: string): void {
+    const name = value.trim() || "Untitled project";
+    renameProject(id, name);
+    const opt = [...picker.options].find((o) => o.value === id);
+    if (opt) opt.textContent = name; // textContent => XSS-safe
+    if (currentProjectId === id) lastClientName = name;
+    setStatus("Renamed.", "saved");
+  }
+
+  /** Persist a pending rename immediately — call before any project switch/unload. */
+  function flushRename(): void {
+    window.clearTimeout(renameTimer);
+    if (pendingRename) {
+      applyRename(pendingRename.id, pendingRename.value);
+      pendingRename = null;
+    }
+  }
+
+  nameInput.addEventListener("input", () => {
+    if (!currentProjectId || isSampleId(currentProjectId)) return;
+    pendingRename = { id: currentProjectId, value: nameInput.value };
+    window.clearTimeout(renameTimer);
+    renameTimer = window.setTimeout(flushRename, 400);
+  });
+
+  delBtn.addEventListener("click", async () => {
+    if (!currentProjectId) return;
+    if (isSampleId(currentProjectId)) {
+      setStatus("Sample projects are read-only — Duplicate to make an editable copy.", "warn");
+      return;
+    }
+    const proj = getProject(currentProjectId);
+    if (!proj) return;
+    const ok = await openConfirm({
+      title: "Delete this project?",
+      body: `“${proj.name}” and its shot list will be permanently removed. This can't be undone.`,
+      confirmText: "Delete",
+    });
+    if (!ok) return;
+    deleteProject(currentProjectId);
+    // Reset cleanly to the most-recent remaining project, else a fresh draft.
+    const remaining = listProjects();
+    if (remaining.length > 0) {
+      openProject(remaining[0].id);
+    } else {
+      newProject();
+    }
+    setStatus("Deleted.", "saved");
+  });
+
+  // ─── Confirm modal (in-app replacement for native confirm()) ─────────
+  const confirmEl = document.querySelector("[data-confirm-modal]") as HTMLElement | null;
+  const confirmTitle = confirmEl?.querySelector("[data-confirm-title]") as HTMLElement | null;
+  const confirmBody = confirmEl?.querySelector("[data-confirm-body]") as HTMLElement | null;
+  const confirmOk = confirmEl?.querySelector("[data-confirm-ok]") as HTMLButtonElement | null;
+  const confirmCancelBtn = confirmEl?.querySelector("button[data-confirm-cancel]") as HTMLButtonElement | null;
+  let confirmResolve: ((v: boolean) => void) | null = null;
+  let confirmLastFocus: HTMLElement | null = null;
+
+  function closeConfirm(value: boolean): void {
+    if (!confirmEl) return;
+    confirmEl.hidden = true;
+    const resolve = confirmResolve;
+    confirmResolve = null;
+    confirmLastFocus?.focus?.();
+    resolve?.(value);
+  }
+
+  function openConfirm(opts: { title?: string; body: string; confirmText?: string }): Promise<boolean> {
+    if (!confirmEl || !confirmTitle || !confirmBody || !confirmOk) {
+      return Promise.resolve(window.confirm(opts.body));
+    }
+    confirmTitle.textContent = opts.title ?? "Are you sure?";
+    confirmBody.textContent = opts.body; // textContent => XSS-safe
+    confirmOk.textContent = opts.confirmText ?? "Confirm";
+    confirmLastFocus = document.activeElement as HTMLElement;
+    confirmEl.hidden = false;
+    confirmCancelBtn?.focus();
+    return new Promise((resolve) => { confirmResolve = resolve; });
+  }
+
+  confirmOk?.addEventListener("click", () => closeConfirm(true));
+  confirmEl?.querySelectorAll("[data-confirm-cancel]").forEach((el) =>
+    el.addEventListener("click", () => closeConfirm(false))
+  );
+  document.addEventListener("keydown", (e) => {
+    if (confirmEl && !confirmEl.hidden && e.key === "Escape") {
+      e.preventDefault();
+      closeConfirm(false);
+    }
+  });
+
+  // ─── Copy buttons ─────────────────────────────────────────────────────
   document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const data = (window as any).__lastResult as GenData | undefined;
@@ -133,6 +511,7 @@ const FORMATS = [
     });
   });
 
+  // ─── Generate ─────────────────────────────────────────────────────────
   submit.addEventListener("click", async () => {
     const concept = conceptEl.value.trim();
     const format = formatEl.value;
@@ -174,6 +553,7 @@ const FORMATS = [
 
       if (loading) loading.dataset.stage = "done";
       (window as any).__lastResult = payload.data;
+      persistGenerated(concept, format, payload.data);
       render(payload.data);
       if (hint && Number.isFinite(payload.remaining) && payload.remaining >= 0) {
         hint.textContent =
@@ -191,6 +571,43 @@ const FORMATS = [
     }
   });
 
+  /**
+   * Save the generated shot list to a project so it survives refresh.
+   * - Editing an existing user project → update it in place.
+   * - Fresh draft, or a read-only sample → create a new auto-named project.
+   */
+  function persistGenerated(concept: string, format: string, data: GenData): void {
+    const stored: StoredResult = {
+      format: data.format,
+      total_duration_sec: data.total_duration_sec,
+      shot_count: data.shot_count,
+      shots: data.shots,
+      duration_drift: data.duration_drift,
+      target_duration_sec: data.target_duration_sec,
+    };
+    let project: Project;
+    if (currentProjectId && !isSampleId(currentProjectId) && getProject(currentProjectId)) {
+      const existing = getProject(currentProjectId) as Project;
+      project = saveProject({ ...existing, concept, format, result: stored });
+    } else {
+      project = saveProject({
+        id: crypto.randomUUID(),
+        name: autoName(concept),
+        concept,
+        format,
+        result: stored,
+        updated_at: new Date().toISOString(),
+      });
+      lastClientName = project.name;
+    }
+    currentProjectId = project.id;
+    setLastViewed(project.id);
+    populatePicker();
+    refreshControls();
+    setStatus("✓ Saved — survives refresh", "saved");
+  }
+
+  // ─── Render ───────────────────────────────────────────────────────────
   function render(data: GenData) {
     if (!result) return;
     result.hidden = false;
@@ -287,5 +704,22 @@ const FORMATS = [
       lines.push("");
     });
     return lines.join("\n");
+  }
+
+  // ─── DEV-only test seam (stripped from production builds) ─────────────
+  if (import.meta.env.DEV) {
+    (window as any).__debug = {
+      listProjects,
+      getProject,
+      saveProject,
+      deleteProject,
+      renameProject,
+      duplicateProject,
+      autoName,
+      getLastViewedId,
+      openProject,
+      newProject,
+      currentProjectId: () => currentProjectId,
+    };
   }
 </script>

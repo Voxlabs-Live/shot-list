@@ -14,6 +14,10 @@
 @import "./tokens.css";
 
 /* ── Resets ───────────────────────────────────────────── */
+/* Enforce the [hidden] attribute — class-level display rules (e.g. a modal's
+ * `display: grid`) outrank the UA stylesheet's bare [hidden] rule, so the
+ * element would stay visible. !important guarantees hidden wins. */
+[hidden] { display: none !important; }
 *, *::before, *::after {
   box-sizing: border-box;
 }

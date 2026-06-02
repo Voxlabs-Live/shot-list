@@ -35,9 +35,11 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   // Step 2 — validate input
-  let body: { concept?: string; format?: string };
+  let body: { concept?: unknown; format?: unknown };
   try {
-    body = await request.json();
+    const parsed = await request.json();
+    // A JSON primitive / null / array isn't a usable request object.
+    body = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return json<GenerateResponseData>({
       ok: false,
@@ -45,8 +47,10 @@ export const POST: APIRoute = async ({ request }) => {
       message: "Body must be JSON with `concept` and `format` fields.",
     });
   }
-  const concept = (body.concept ?? "").trim();
-  const format = (body.format ?? "").trim();
+  // Coerce defensively: a wrong-typed field (number, array, …) must surface as
+  // invalid_input, never a 500 from calling .trim() on a non-string.
+  const concept = typeof body.concept === "string" ? body.concept.trim() : "";
+  const format = typeof body.format === "string" ? body.format.trim() : "";
   if (!concept || !format) {
     return json<GenerateResponseData>({
       ok: false,
