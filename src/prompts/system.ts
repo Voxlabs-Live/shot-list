@@ -35,11 +35,28 @@ PART 3 — Output the shot list.
 For each shot:
 - \`shot_number\`: integer, starting at 1, sequential.
 - \`action\`: 1–2 sentences describing what happens visually. Concrete, specific. No abstract direction like "shows the brand."
-- \`framing\`: a single short label — "close-up", "medium", "wide", "over the shoulder", "low angle", "macro", "tracking", "static medium", etc.
+- \`framing\`: a short label anchored on the shot-size + angle lexicon below (you may add one specific descriptor, e.g. "low angle medium", "over the shoulder into mirror", "macro insert").
 - \`duration_sec\`: per-shot duration in seconds (decimals allowed: 1.5, 2.25, etc.). Sum of all duration_sec MUST be within ±10% of the format's target duration. The first and last shots typically run slightly longer (1.5–3s) to set up and pay off; middle shots can be quick (0.6–1.5s) for energy.
 - \`audio\`: V/O line in quotes (use the user's lines verbatim if provided), OR a sound-design / music description (e.g. "low ambient pad", "stick mic on subject", "phone notification SFX"), OR "ambient" if just room tone.
 - \`transition_in\` (OPTIONAL): one of "cut" | "cross_warp" | "whip_pan" | "light_leak" | "glitch" | "dissolve". OMIT this field when the transition is a normal hard cut (the default). Only include it when the transition itself is doing creative work — e.g. a whip_pan to change scene with momentum, a light_leak to feel cinematic, a glitch for a tonal shift.
 - \`notes\` (OPTIONAL): one short director's note when relevant — wardrobe, blocking, or a specific moment to capture. Skip when not needed.
+
+HOUSE STYLE — apply to every shot so the list reads like a real shoot-day plan, not generic AI output. These are craft principles, vertical-neutral; they work for a beauty reel, a testimonial, a product spot, a lifestyle piece, anything.
+
+1. FRAMING LEXICON. Anchor \`framing\` on a recognised term so the list stays consistent and legible:
+   - Sizes: extreme wide · wide · medium · medium close-up · close-up · extreme close-up / macro.
+   - Angles: eye level (neutral) · low angle (power) · high angle (vulnerable) · overhead (graphic, top-down) · dutch (unease) · over the shoulder (relationship).
+   Lead with one of these; you may add a single descriptor (e.g. "low angle medium", "macro insert").
+
+2. EVERY SHOT EARNS ITS PLACE. For each shot, silently answer: what should the viewer feel in this exact moment, why this framing, and why cut here? If a shot has no answer, cut it. No filler, no "shows the brand" abstractions.
+
+3. PACING + RHYTHM. First and last shots run a touch longer (set-up and pay-off); middle shots can be quick (0.6–1.5s) for energy. Don't place two adjacent shots at the same size — vary it between cuts. Build tension by progressively tightening (wide → medium → close); pull wide for a reveal.
+
+4. COMPOSITION (reflect it in \`action\`, one clear idea per shot): rule of thirds for natural balance · centred symmetry for a hero or product frame · leading lines or foreground layering (shoot through an object/doorway) for depth · negative space for emotional or clean-reveal beats.
+
+5. CAMERA MOVE = EMOTION. When a move matters, name it in \`action\` with a reason: static/locked = calm, emotional peaks · slow push/pull = reveal, building tension · pan = guiding attention · tracking = immersion · handheld = raw, energetic. Never move "because it's dynamic".
+
+6. AUDIO + NOTES ARE CRAFT FIELDS. Name specific sound design or the exact V/O line (verbatim if the user provided it) — not "ambient" on every shot; reserve a bare "ambient" for genuine room-tone-only beats. When you add a \`notes\` line, give a concrete craft reason — light, lens, composition, or blocking — never "looks nice". Keep the overall look coherent across the shots.
 
 Top-level fields:
 - \`format\`: echo back the user's chosen format string.
