@@ -97,6 +97,15 @@ const FORMATS = [
   <ShotResult />
   <RateLimitWall repoUrl={REPO_URL} />
 
+  <!-- Term explainer popover — opens on clicking a framing/transition chip. -->
+  <div class="term-pop" data-term-pop hidden role="dialog" aria-label="Shot list term explanation">
+    <button type="button" class="term-pop__close" data-term-pop-close aria-label="Close">&times;</button>
+    <p class="term-pop__title" data-term-pop-title></p>
+    <code class="term-pop__token" data-term-pop-token></code>
+    <p class="term-pop__blurb" data-term-pop-blurb></p>
+    <p class="term-pop__example" data-term-pop-example></p>
+  </div>
+
   <!-- Confirmation modal — replaces native confirm() for destructive actions. -->
   <div class="confirm" data-confirm-modal hidden>
     <div class="confirm__backdrop" data-confirm-cancel></div>
@@ -217,12 +226,69 @@ const FORMATS = [
   @media (prefers-reduced-motion: reduce) {
     .confirm__backdrop, .confirm__card { animation: none; }
   }
+
+  /* ─── Term explainer popover ────────────────────────────────────────── */
+  .term-pop {
+    position: fixed;
+    z-index: 1100;
+    width: min(20rem, calc(100vw - 1.5rem));
+    background: var(--surface-0);
+    border: 1px solid var(--surface-300);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-xl, var(--shadow-card));
+    padding: 0.9rem 1rem 1rem;
+  }
+  .term-pop__close {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.45rem;
+    background: none;
+    border: 0;
+    font-size: 1.2rem;
+    line-height: 1;
+    color: var(--surface-500);
+    cursor: pointer;
+    padding: 0.2rem 0.35rem;
+    border-radius: var(--radius-sm, 4px);
+  }
+  .term-pop__close:hover { color: var(--surface-900); background: var(--surface-100); }
+  .term-pop__title {
+    font-family: var(--font-display);
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--text-base);
+    color: var(--surface-900);
+    margin: 0 1.5rem 0.15rem 0;
+  }
+  .term-pop__token {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--accent-800);
+    background: oklch(from var(--accent-100) l c h / 0.6);
+    border: 1px solid oklch(from var(--accent-500) l c h / 0.3);
+    border-radius: var(--radius-sm, 4px);
+    padding: 0.05rem 0.4rem;
+  }
+  .term-pop__token:empty { display: none; }
+  .term-pop__blurb {
+    margin: 0.55rem 0 0.35rem;
+    font-size: var(--text-sm);
+    color: var(--surface-700);
+    line-height: var(--leading-relaxed);
+  }
+  .term-pop__example {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--surface-500);
+    font-style: italic;
+  }
+  .term-pop__example:empty { display: none; }
 </style>
 
 <script>
   import { SHOT_SAMPLES } from "../fixtures/studio-north";
   import type { ShotListResult, Shot } from "../lib/shot-types";
   import type { ApiResponse } from "../lib/types";
+  import { transitionEntry, matchFraming, type GlossaryEntry } from "../lib/shot-glossary";
   import {
     seedSamplesIfNeeded,
     buildSampleProjects,
@@ -490,6 +556,87 @@ const FORMATS = [
     }
   });
 
+  // ─── Term explainer popover ───────────────────────────────────────────
+  // Framing tags and transition chips open a small in-context card with a
+  // plain-English definition. The full set also lives in the collapsible
+  // "Shot list terms, explained" glossary under the result.
+  const termPop = document.querySelector("[data-term-pop]") as HTMLElement | null;
+  const popTitle = termPop?.querySelector("[data-term-pop-title]") as HTMLElement | null;
+  const popToken = termPop?.querySelector("[data-term-pop-token]") as HTMLElement | null;
+  const popBlurb = termPop?.querySelector("[data-term-pop-blurb]") as HTMLElement | null;
+  const popExample = termPop?.querySelector("[data-term-pop-example]") as HTMLElement | null;
+  let popAnchor: HTMLElement | null = null;
+
+  /** Turn a chip into a keyboard- and pointer-accessible explainer trigger. */
+  function makeChipInteractive(el: HTMLElement, entry: GlossaryEntry): void {
+    el.setAttribute("role", "button");
+    el.setAttribute("tabindex", "0");
+    el.setAttribute("aria-label", `What is ${entry.title}?`);
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openTermPopover(entry, el);
+    });
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openTermPopover(entry, el);
+      }
+    });
+  }
+
+  function openTermPopover(entry: GlossaryEntry, anchor: HTMLElement): void {
+    if (!termPop || !popTitle || !popToken || !popBlurb || !popExample) return;
+    popTitle.textContent = entry.title;
+    // Only transitions carry a canonical enum token worth surfacing.
+    popToken.textContent = entry.token.includes("_") ? entry.token : "";
+    popBlurb.textContent = entry.blurb; // textContent => XSS-safe
+    popExample.textContent = entry.example ? `e.g. ${entry.example}` : "";
+    popAnchor = anchor;
+    termPop.hidden = false;
+    positionTermPop(anchor);
+    (termPop.querySelector("[data-term-pop-close]") as HTMLButtonElement | null)?.focus();
+  }
+
+  function closeTermPopover(returnFocus = true): void {
+    if (!termPop || termPop.hidden) return;
+    termPop.hidden = true;
+    const a = popAnchor;
+    popAnchor = null;
+    if (returnFocus) a?.focus?.();
+  }
+
+  function positionTermPop(anchor: HTMLElement): void {
+    if (!termPop) return;
+    const r = anchor.getBoundingClientRect();
+    const pw = termPop.offsetWidth;
+    const ph = termPop.offsetHeight;
+    let left = r.left;
+    if (left + pw > window.innerWidth - 12) left = window.innerWidth - 12 - pw;
+    if (left < 12) left = 12;
+    let top = r.bottom + 8;
+    if (top + ph > window.innerHeight - 12) top = r.top - 8 - ph; // flip above
+    if (top < 12) top = 12;
+    termPop.style.left = `${left}px`;
+    termPop.style.top = `${top}px`;
+  }
+
+  termPop?.querySelector("[data-term-pop-close]")?.addEventListener("click", () => closeTermPopover());
+  // Click anywhere outside closes it (chip clicks stopPropagation, so they don't).
+  document.addEventListener("click", (e) => {
+    if (termPop && !termPop.hidden && !termPop.contains(e.target as Node)) {
+      closeTermPopover(false);
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (termPop && !termPop.hidden && e.key === "Escape") {
+      e.preventDefault();
+      closeTermPopover();
+    }
+  });
+  // A floating fixed popover would drift on scroll/resize — just close it.
+  window.addEventListener("scroll", () => closeTermPopover(false), true);
+  window.addEventListener("resize", () => closeTermPopover(false));
+
   // ─── Copy buttons ─────────────────────────────────────────────────────
   document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -648,9 +795,19 @@ const FORMATS = [
     const meta = document.createElement("div");
     meta.className = "shot-meta";
     meta.appendChild(chip(`${s.duration_sec.toFixed(1)}s`, "chip chip--duration"));
-    meta.appendChild(chip(s.framing, "chip"));
+
+    // Framing chip — wire an explainer popover when we recognize the term.
+    const framingChip = chip(s.framing, "chip");
+    const framingEntry = matchFraming(s.framing);
+    if (framingEntry) makeChipInteractive(framingChip, framingEntry);
+    meta.appendChild(framingChip);
+
+    // Transition chip — only shown for a real (non-cut) shader transition.
     if (s.transition_in && s.transition_in !== "cut") {
-      meta.appendChild(chip(`→ ${s.transition_in}`, "chip chip--transition"));
+      const transChip = chip(`→ ${s.transition_in}`, "chip chip--transition");
+      const transEntry = transitionEntry(s.transition_in);
+      if (transEntry) makeChipInteractive(transChip, transEntry);
+      meta.appendChild(transChip);
     }
     body.appendChild(meta);
 

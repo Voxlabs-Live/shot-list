@@ -2,6 +2,12 @@
 // ShotResult — renders the shot list as a stacked timeline of cards.
 // Each shot shows: number, duration bar, framing chip, action, audio, optional
 // transition + notes. Drift warning surfaces at top when sum is outside ±10%.
+import {
+  TRANSITION_ORDER,
+  TRANSITION_GLOSSARY,
+  FRAMING_ORDER,
+  FRAMING_GLOSSARY,
+} from "../lib/shot-glossary";
 ---
 <section class="result" hidden>
   <header class="result__head">
@@ -41,6 +47,55 @@
   </p>
 
   <ol class="shots" data-field="shots"></ol>
+
+  <details class="glossary">
+    <summary class="glossary__summary">
+      <span>Shot list terms, explained</span>
+      <span class="glossary__chev" aria-hidden="true">&rsaquo;</span>
+    </summary>
+    <p class="glossary__lead">
+      Tap any framing tag or transition chip above to see what it means in
+      place — or skim the full set here.
+    </p>
+
+    <h4 class="glossary__group">Transitions</h4>
+    <p class="glossary__note">
+      The amber chip with the arrow. It only appears when the transition does
+      real work — a plain cut has no chip.
+    </p>
+    <ul class="glossary__list">
+      {TRANSITION_ORDER.map((token) => {
+        const e = TRANSITION_GLOSSARY[token];
+        return (
+          <li class="glossary__item" id={`term-${token}`}>
+            <p class="glossary__title">
+              {e.title}
+              <code class="glossary__token">{token}</code>
+            </p>
+            <p class="glossary__blurb">{e.blurb}</p>
+            {e.example && <p class="glossary__example">e.g. {e.example}</p>}
+          </li>
+        );
+      })}
+    </ul>
+
+    <h4 class="glossary__group">Framing &amp; angles</h4>
+    <p class="glossary__note">
+      The grey tag on every shot. These are written by the tool, so the exact
+      wording varies — here are the common ones.
+    </p>
+    <ul class="glossary__list">
+      {FRAMING_ORDER.map((token) => {
+        const e = FRAMING_GLOSSARY[token];
+        return (
+          <li class="glossary__item">
+            <p class="glossary__title">{e.title}</p>
+            <p class="glossary__blurb">{e.blurb}</p>
+          </li>
+        );
+      })}
+    </ul>
+  </details>
 </section>
 
 <style>
@@ -193,5 +248,111 @@
     text-transform: uppercase;
     font-style: normal;
     margin-right: 0.4rem;
+  }
+
+  /* Interactive chips: a quiet "there's more here" affordance, no loud icons. */
+  .shots :global(.chip[role="button"]) {
+    cursor: help;
+    text-decoration: underline dotted;
+    text-decoration-color: oklch(from currentColor l c h / 0.45);
+    text-underline-offset: 2px;
+  }
+  .shots :global(.chip[role="button"]:hover) {
+    text-decoration-color: currentColor;
+  }
+  .shots :global(.chip[role="button"]:focus-visible) {
+    outline: 2px solid var(--accent-500);
+    outline-offset: 2px;
+  }
+
+  /* ─── Glossary (collapsible "Shot list terms, explained") ───────────── */
+  .glossary {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--surface-200);
+  }
+  .glossary__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    cursor: pointer;
+    list-style: none;
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--surface-900);
+  }
+  .glossary__summary::-webkit-details-marker { display: none; }
+  .glossary__chev {
+    font-family: var(--font-mono);
+    color: var(--surface-500);
+    transition: transform var(--duration-base, 0.18s) var(--ease-smooth, ease);
+  }
+  .glossary[open] .glossary__chev { transform: rotate(90deg); }
+  .glossary__lead {
+    margin: 0.75rem 0 1.25rem;
+    font-size: var(--text-sm);
+    color: var(--surface-500);
+    max-width: 60ch;
+  }
+  .glossary__group {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--surface-600);
+    margin: 1.25rem 0 0.25rem;
+  }
+  .glossary__note {
+    margin: 0 0 0.85rem;
+    font-size: var(--text-sm);
+    color: var(--surface-500);
+    max-width: 60ch;
+  }
+  .glossary__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem 1.5rem;
+  }
+  @media (max-width: 640px) {
+    .glossary__list { grid-template-columns: 1fr; }
+  }
+  .glossary__item {
+    padding-bottom: 0.85rem;
+    border-bottom: 1px solid var(--surface-100);
+  }
+  .glossary__title {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0 0 0.25rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--surface-900);
+  }
+  .glossary__token {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--accent-800);
+    background: oklch(from var(--accent-100) l c h / 0.6);
+    border: 1px solid oklch(from var(--accent-500) l c h / 0.3);
+    border-radius: var(--radius-sm, 4px);
+    padding: 0.05rem 0.4rem;
+  }
+  .glossary__blurb {
+    margin: 0 0 0.2rem;
+    font-size: var(--text-sm);
+    color: var(--surface-700);
+    line-height: var(--leading-relaxed);
+  }
+  .glossary__example {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--surface-500);
+    font-style: italic;
   }
 </style>
