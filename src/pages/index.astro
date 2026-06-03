@@ -289,6 +289,7 @@ const FORMATS = [
   import type { ShotListResult, Shot } from "../lib/shot-types";
   import type { ApiResponse } from "../lib/types";
   import { transitionEntry, matchFraming, type GlossaryEntry } from "../lib/shot-glossary";
+  import { toMarkdown, toPrintHtml, type ExportResult } from "../lib/shot-export";
   import {
     seedSamplesIfNeeded,
     buildSampleProjects,
@@ -655,6 +656,61 @@ const FORMATS = [
       const orig = btn.textContent;
       btn.textContent = "Copied!";
       setTimeout(() => (btn.textContent = orig), 1400);
+    });
+  });
+
+  // ─── Export buttons (Markdown download + Save-as-PDF) ─────────────────
+  /** The display/title name for an export — the project name, else a fallback. */
+  function exportName(): string {
+    return lastClientName && lastClientName !== "your spot" ? lastClientName : "shot-list";
+  }
+  /** Filesystem-safe slug for download filenames. */
+  function slugify(name: string): string {
+    return (
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60) || "shot-list"
+    );
+  }
+
+  document.querySelectorAll<HTMLButtonElement>("[data-export]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const data = (window as any).__lastResult as GenData | undefined;
+      if (!data) return;
+      const name = exportName();
+      if (btn.dataset.export === "md") {
+        const md = toMarkdown(data as unknown as ExportResult, name);
+        const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${slugify(name)}-shot-list.md`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        const orig = btn.textContent;
+        btn.textContent = "Downloaded!";
+        setTimeout(() => (btn.textContent = orig), 1400);
+      } else if (btn.dataset.export === "pdf") {
+        // Open a clean, self-contained print document so "Save as PDF" yields a
+        // formatted PDF without the app chrome — no extra dependency. A Blob URL
+        // (rather than document.write) keeps it same-origin and non-deprecated.
+        const html = toPrintHtml(data as unknown as ExportResult, name);
+        const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+        const win = window.open(url, "_blank");
+        if (!win) {
+          if (hint) hint.textContent = "Allow pop-ups to save the PDF, then try again.";
+          URL.revokeObjectURL(url);
+          return;
+        }
+        win.focus();
+        // Let the new tab render the blob, then open its print dialog.
+        setTimeout(() => { try { win.print(); } catch { /* user can print manually */ } }, 500);
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
     });
   });
 
