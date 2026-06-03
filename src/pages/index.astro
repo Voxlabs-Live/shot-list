@@ -590,9 +590,13 @@ const FORMATS = [
       const existing = getProject(currentProjectId) as Project;
       project = saveProject({ ...existing, concept, format, result: stored });
     } else {
+      // Generating off a read-only sample graduates it to an editable project.
+      // Keep the sample's clean client name rather than the long concept line.
+      const fromSample =
+        currentProjectId && isSampleId(currentProjectId) ? getProject(currentProjectId) : undefined;
       project = saveProject({
         id: crypto.randomUUID(),
-        name: autoName(concept),
+        name: fromSample ? fromSample.name : autoName(concept),
         concept,
         format,
         result: stored,
