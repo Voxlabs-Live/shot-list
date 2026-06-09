@@ -150,7 +150,8 @@ const FORMATS = [
   }
   .projects__picker { flex: 1 1 16rem; min-width: 12rem; }
   .projects__name { flex: 1 1 16rem; min-width: 12rem; }
-  .projects__name[readonly] {
+  .projects__name[readonly],
+  #concept[readonly] {
     background: var(--surface-50);
     color: var(--surface-500);
     cursor: not-allowed;
@@ -376,6 +377,11 @@ const FORMATS = [
       nameInput.readOnly = sample;
       nameInput.title = sample ? "Sample projects are read-only — Duplicate to edit" : "";
     }
+    // Lock the concept text on read-only samples too (not just the name), so a
+    // loaded sample can't be scribbled over. Generate/Duplicate graduate it to
+    // an editable copy. Format stays enabled — it's a generation choice.
+    conceptEl.readOnly = sample;
+    conceptEl.title = sample ? "Sample projects are read-only — Duplicate to edit" : "";
     dupBtn.disabled = !hasProject;
     delBtn.disabled = !hasProject;
   }
